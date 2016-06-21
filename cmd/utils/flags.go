@@ -30,7 +30,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/codegangsta/cli"
 	"github.com/ethereum/ethash"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
@@ -51,6 +50,7 @@ import (
 	"github.com/ethereum/go-ethereum/release"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/ethereum/go-ethereum/whisper"
+	"gopkg.in/urfave/cli.v1"
 )
 
 func init() {
@@ -302,7 +302,7 @@ var (
 		Name:  "exec",
 		Usage: "Execute JavaScript statement (only in combination with console/attach)",
 	}
-	PreLoadJSFlag = cli.StringFlag{
+	PreloadJSFlag = cli.StringFlag{
 		Name:  "preload",
 		Usage: "Comma separated list of JavaScript files to preload into the console",
 	}
@@ -806,7 +806,7 @@ func MustMakeChainConfig(ctx *cli.Context) *core.ChainConfig {
 
 // MustMakeChainConfigFromDb reads the chain configuration from the given database.
 func MustMakeChainConfigFromDb(ctx *cli.Context, db ethdb.Database) *core.ChainConfig {
-	genesis := core.GetBlock(db, core.GetCanonicalHash(db, 0))
+	genesis := core.GetBlock(db, core.GetCanonicalHash(db, 0), 0)
 
 	if genesis != nil {
 		// Existing genesis block, use stored config if available.
@@ -863,4 +863,21 @@ func MakeChain(ctx *cli.Context) (chain *core.BlockChain, chainDb ethdb.Database
 		Fatalf("Could not start chainmanager: %v", err)
 	}
 	return chain, chainDb
+}
+
+// MakeConsolePreloads retrieves the absolute paths for the console JavaScript
+// scripts to preload before starting.
+func MakeConsolePreloads(ctx *cli.Context) []string {
+	// Skip preloading if there's nothing to preload
+	if ctx.GlobalString(PreloadJSFlag.Name) == "" {
+		return nil
+	}
+	// Otherwise resolve absolute paths and return them
+	preloads := []string{}
+
+	assets := ctx.GlobalString(JSpathFlag.Name)
+	for _, file := range strings.Split(ctx.GlobalString(PreloadJSFlag.Name), ",") {
+		preloads = append(preloads, common.AbsolutePath(assets, strings.TrimSpace(file)))
+	}
+	return preloads
 }
